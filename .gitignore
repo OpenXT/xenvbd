@@ -5,3 +5,11 @@
 
 # Output
 /xenvbd
+/.build_number
+/include/version.h
+x64/
+Win32/
+vs2019/xenvbd.inf
+vs2019/version/.revision
+vs2019/Windows8Debug
+vs2019/xenvbd_coinst/Windows8Debug
