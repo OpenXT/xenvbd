@@ -1,4 +1,5 @@
-/* Copyright (c) Citrix Systems Inc.
+/* Copyright (c) Xen Project.
+ * Copyright (c) Cloud Software Group, Inc.
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, 
@@ -267,6 +268,7 @@ FrontendInsertRequestOnRing(
         }
         break;
     case BLKIF_OP_WRITE_BARRIER:
+    case BLKIF_OP_FLUSH_DISKCACHE:
         RingReq->operation          = Request->Operation;
         RingReq->nr_segments        = 0;
         RingReq->handle             = (USHORT)Frontend->DeviceId;
@@ -460,13 +462,6 @@ __ReadFeatures(
     NTSTATUS    Status;
     PCHAR       Buffer;
 
-    Status = StoreRead(NULL, Frontend->BackendPath, 
-                        "removable", &Buffer);
-    if (NT_SUCCESS(Status)) {
-        Frontend->Removable = (strtoul(Buffer, NULL, 10) == 1);
-        AustereFree(Buffer);
-    }
-
     Status = StoreRead(NULL, Frontend->BackendPath,
                         "feature-barrier", &Buffer);
     if (NT_SUCCESS(Status)) {
@@ -474,6 +469,15 @@ __ReadFeatures(
         AustereFree(Buffer);
     } else {
         Frontend->FeatureBarrier = FALSE;
+    }
+
+    Status = StoreRead(NULL, Frontend->BackendPath,
+                        "feature-flush-cache", &Buffer);
+    if (NT_SUCCESS(Status)) {
+        Frontend->FeatureFlush = (strtoul(Buffer, NULL, 10) == 1);
+        AustereFree(Buffer);
+    } else {
+        Frontend->FeatureFlush = FALSE;
     }
 
     Status = StoreRead(NULL, Frontend->BackendPath,
@@ -485,10 +489,10 @@ __ReadFeatures(
         Frontend->FeatureDiscard = FALSE;
     }
 
-    LogVerbose("Features: DomId=%d, RingOrder=0, %s %s %s\n", 
+    LogVerbose("Features: DomId=%d, RingOrder=0, %s %s %s\n",
                 Frontend->BackendId,
-                Frontend->Removable ? "REMOVABLE" : "NOT_REMOVABLE",
                 Frontend->FeatureBarrier ? "BARRIER" : "NOT_BARRIER",
+                Frontend->FeatureFlush ? "FLUSH" : "NOT_FLUSH",
                 Frontend->FeatureDiscard ? "DISCARD" : "NOT_DISCARD");
 }
 static VOID
@@ -1204,5 +1208,3 @@ fail1:
     LogError("Fail1 (%08x)\n", Status);
     return Status;
 }
-
-

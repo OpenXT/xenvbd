@@ -1,4 +1,5 @@
-/* Copyright (c) Citrix Systems Inc.
+/* Copyright (c) Xen Project.
+ * Copyright (c) Cloud Software Group, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms,
@@ -36,7 +37,8 @@
 
 extern NTSTATUS
 RegistryInitialize(
-    IN PUNICODE_STRING  Path
+    IN  PDRIVER_OBJECT  DriverObject,
+    IN  PUNICODE_STRING Path
     );
 
 extern VOID
@@ -68,6 +70,12 @@ RegistryOpenServiceKey(
 
 extern NTSTATUS
 RegistryCreateServiceKey(
+    OUT PHANDLE     Key
+    );
+
+extern NTSTATUS
+RegistryOpenParametersKey(
+    IN  ACCESS_MASK DesiredAccess,
     OUT PHANDLE     Key
     );
 

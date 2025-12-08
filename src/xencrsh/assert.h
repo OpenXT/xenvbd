@@ -1,4 +1,5 @@
-/* Copyright (c) Citrix Systems Inc.
+/* Copyright (c) Xen Project.
+ * Copyright (c) Cloud Software Group, Inc.
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, 
@@ -87,7 +88,7 @@ __BugCheck(
             if (!(_Lval _OP _Rval)) {               \
                 LogError("%s = %llu\n", #_X, _Lval);\
                 LogError("%s = %llu\n", #_Y, _Rval);\
-                BUG_ON(_X _OP _Y);                  \
+                ASSERT((_X) _OP (_Y));              \
             }                                       \
         } while (FALSE)
 
@@ -98,7 +99,7 @@ __BugCheck(
             if (!(_Lval _OP _Rval)) {               \
                 LogError("%s = %lld\n", #_X, _Lval);\
                 LogError("%s = %lld\n", #_Y, _Rval);\
-                BUG_ON(_X _OP _Y);                  \
+                ASSERT((_X) _OP (_Y));              \
             }                                       \
         } while (FALSE)
 
@@ -109,7 +110,7 @@ __BugCheck(
             if (!(_Lval _OP _Rval)) {               \
                 LogError("%s = %p\n", #_X, _Lval);  \
                 LogError("%s = %p\n", #_Y, _Rval);  \
-                BUG_ON(_X _OP _Y);                  \
+                ASSERT((_X) _OP (_Y));              \
             }                                       \
         } while (FALSE)
 
@@ -142,4 +143,3 @@ _IsZeroMemory(
 #define EQUIV(_X, _Y)   (IMPLY((_X), (_Y)) && IMPLY((_Y), (_X)))
 
 #endif  // _XENCRSH_ASSERT_H
-
