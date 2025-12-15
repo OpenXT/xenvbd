@@ -1,4 +1,5 @@
-/* Copyright (c) Citrix Systems Inc.
+/* Copyright (c) Xen Project.
+ * Copyright (c) Cloud Software Group, Inc.
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, 
@@ -108,82 +109,6 @@ DriverDispatchPower(
     )
 {
     return Driver.StorPortDispatchPower(DeviceObject, Irp);
-}
-
-#define MAXNAMELEN  256
-
-__drv_requiresIRQL(PASSIVE_LEVEL)
-VOID
-DriverRequestReboot(
-    VOID
-    )
-{
-    PANSI_STRING    Ansi;
-    CHAR            RequestKeyName[MAXNAMELEN];
-    HANDLE          RequestKey;
-    HANDLE          SubKey;
-    NTSTATUS        status;
-
-    ASSERT3U(KeGetCurrentIrql(), ==, PASSIVE_LEVEL);
-
-    status = RegistryQuerySzValue(Driver.ParametersKey,
-                                  "RequestKey",
-                                  NULL,
-                                  &Ansi);
-    if (!NT_SUCCESS(status))
-        goto fail1;
-
-    status = RtlStringCbPrintfA(RequestKeyName,
-                                MAXNAMELEN,
-                                "\\Registry\\Machine\\%Z",
-                                &Ansi[0]);
-    ASSERT(NT_SUCCESS(status));
-
-    status = RegistryCreateSubKey(NULL,
-                                  RequestKeyName,
-                                  REG_OPTION_NON_VOLATILE,
-                                  &RequestKey);
-    if (!NT_SUCCESS(status))
-        goto fail2;
-
-    status = RegistryCreateSubKey(RequestKey,
-                                  __MODULE__,
-                                  REG_OPTION_VOLATILE,
-                                  &SubKey);
-    if (!NT_SUCCESS(status))
-        goto fail3;
-
-    status = RegistryUpdateDwordValue(SubKey,
-                                      "Reboot",
-                                      1);
-    if (!NT_SUCCESS(status))
-        goto fail4;
-
-    RegistryCloseKey(SubKey);
-
-    RegistryCloseKey(RequestKey);
-
-    RegistryFreeSzValue(Ansi);
-
-    return;
-
-fail4:
-    Error("fail4\n");
-
-    RegistryCloseKey(SubKey);
-
-fail3:
-    Error("fail3\n");
-
-    RegistryCloseKey(RequestKey);
-
-fail2:
-    Error("fail2\n");
-
-    RegistryFreeSzValue(Ansi);
-
-fail1:
-    Error("fail1 (%08x)\n", status);
 }
 
 __drv_dispatchType(IRP_MJ_PNP)
@@ -301,7 +226,7 @@ DriverGetFeatureOverride(
 {
     BOOLEAN              Present = FALSE;
 
-    if (Feature < ARRAYSIZE(Driver.FeatureOverride)) {
+    if ((ULONG)Feature < ARRAYSIZE(Driver.FeatureOverride)) {
         Present = Driver.FeatureOverride[Feature].Present;
         *Value = Driver.FeatureOverride[Feature].Value;
     }
@@ -315,7 +240,7 @@ DriverGetFeatureName(
     IN  XENVBD_FEATURE  Feature
     )
 {
-    return (Feature < ARRAYSIZE(Driver.FeatureOverride)) ?
+    return ((ULONG)Feature < ARRAYSIZE(Driver.FeatureOverride)) ?
            Driver.FeatureOverride[Feature].Name :
            NULL;
 }
@@ -350,7 +275,6 @@ DriverEntry(
     IN  PUNICODE_STRING     RegistryPath
     )
 {
-    HANDLE                  ServiceKey;
     HANDLE                  ParametersKey;
     NTSTATUS                status;
 
@@ -370,20 +294,13 @@ DriverEntry(
          MONTH,
          YEAR);
 
-    status = RegistryInitialize(RegistryPath);
+    status = RegistryInitialize(DriverObject, RegistryPath);
     if (!NT_SUCCESS(status))
         goto fail1;
 
-    status = RegistryOpenServiceKey(KEY_ALL_ACCESS, &ServiceKey);
+    status = RegistryOpenParametersKey(KEY_READ, &ParametersKey);
     if (!NT_SUCCESS(status))
         goto fail2;
-
-    status = RegistryOpenSubKey(ServiceKey,
-                                "Parameters",
-                                KEY_READ,
-                                &ParametersKey);
-    if (!NT_SUCCESS(status))
-        goto fail3;
 
     Driver.ParametersKey = ParametersKey;
     Driver.Adapter = NULL;
@@ -393,7 +310,7 @@ DriverEntry(
     status = AdapterDriverEntry(RegistryPath,
                                 DriverObject);
     if (!NT_SUCCESS(status))
-        goto fail4;
+        goto fail3;
 
     Driver.StorPortDispatchPnp   = DriverObject->MajorFunction[IRP_MJ_PNP];
     Driver.StorPortDispatchPower = DriverObject->MajorFunction[IRP_MJ_POWER];
@@ -403,22 +320,13 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_POWER] = DispatchPower;
     DriverObject->DriverUnload                = DriverUnload;
 
-    RegistryCloseKey(ServiceKey);
-    ServiceKey = NULL;
-
     return STATUS_SUCCESS;
-
-fail4:
-    Error("fail4\n");
-
-    RegistryCloseKey(Driver.ParametersKey);
-    Driver.ParametersKey = NULL;
 
 fail3:
     Error("fail3\n");
 
-    RegistryCloseKey(ServiceKey);
-    ServiceKey = NULL;
+    RegistryCloseKey(Driver.ParametersKey);
+    Driver.ParametersKey = NULL;
 
 fail2:
     Error("fail2\n");

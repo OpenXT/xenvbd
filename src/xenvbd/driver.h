@@ -1,4 +1,5 @@
-/* Copyright (c) Citrix Systems Inc.
+/* Copyright (c) Xen Project.
+ * Copyright (c) Cloud Software Group, Inc.
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, 
@@ -59,12 +60,6 @@ extern NTSTATUS
 DriverDispatchPower(
     IN  PDEVICE_OBJECT  DeviceObject,
     IN  PIRP            Irp
-    );
-
-__drv_requiresIRQL(PASSIVE_LEVEL)
-extern VOID
-DriverRequestReboot(
-    VOID
     );
 
 // Registry overrides for driver features

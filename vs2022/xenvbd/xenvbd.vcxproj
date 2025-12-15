@@ -8,47 +8,49 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{D7411B2C-2C43-434D-9F56-E10A3D2F5BAD}</ProjectGuid>
+    <ProjectGuid>{EF236371-3145-41B1-99C9-82B33E353F17}</ProjectGuid>
   </PropertyGroup>
   <Import Project="..\targets.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup>
-    <RunCodeAnalysis>true</RunCodeAnalysis>
     <EnableInf2cat>false</EnableInf2cat>
     <IntDir>..\$(ProjectName)\$(ConfigurationName)\$(Platform)\</IntDir>
     <OutDir>..\$(ConfigurationName)\$(Platform)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\include;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AdditionalOptions>/ZH:SHA_256 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)\include\km;..\..\include;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>PROJECT=$(ProjectName);POOL_NX_OPTIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <WarningLevel>EnableAllWarnings</WarningLevel>
-      <DisableSpecificWarnings>4464;4548;4770;4711;4820;4668;4255;5045;6001;6054;28196;30030;30029;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4061;4464;4548;4770;4711;4820;4668;4255;5045;6001;6054;26451;28160;28196;30030;30029;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <EnablePREfast>true</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>..\..\include;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <AdditionalDependencies>$(DDK_LIB_PATH)/libcntpr.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\$(ConfigurationName)\$(Platform)\xencrsh.lib;$(DDK_LIB_PATH)/storport.lib;$(DDK_LIB_PATH)/libcntpr.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <CETCompat>true</CETCompat>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
     </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Platform)'=='Win32'">
-    <ClCompile>
-      <PreprocessorDefinitions>__i386__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
+    <DriverSign>
+      <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
     <ClCompile>
       <PreprocessorDefinitions>__x86_64__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <Link>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Windows 8 Release'">
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Windows 10 Release'">
     <ClCompile>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -58,16 +60,21 @@
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
     <FilesToPackage Include="$(OutDir)$(TargetName).pdb" />
+    <FilesToPackage Include="$(OutDir)$(TargetName).map" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="../../src/xendisk/driver.c" />
-    <ClCompile Include="../../src/xendisk/fdo.c" />
-    <ClCompile Include="../../src/xendisk/pdo.c" />
-    <ClCompile Include="../../src/xendisk/registry.c" />
-    <ClCompile Include="../../src/xendisk/thread.c" />
+    <ClCompile Include="../../src/xenvbd/driver.c" />
+    <ClCompile Include="../../src/xenvbd/registry.c" />
+    <ClCompile Include="../../src/xenvbd/adapter.c" />
+    <ClCompile Include="../../src/xenvbd/frontend.c" />
+    <ClCompile Include="../../src/xenvbd/target.c" />
+    <ClCompile Include="../../src/xenvbd/base64.c" />
+    <ClCompile Include="../../src/xenvbd/thread.c" />
+    <ClCompile Include="../../src/xenvbd/ring.c" />
+    <ClCompile Include="../../src/xenvbd/granter.c" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="..\..\src\xendisk\xendisk.rc" />
+    <ResourceCompile Include="..\..\src\xenvbd\xenvbd.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -1,4 +1,5 @@
-/* Copyright (c) Citrix Systems Inc.
+/* Copyright (c) Xen Project.
+ * Copyright (c) Cloud Software Group, Inc.
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, 
@@ -62,7 +63,7 @@ struct _XENVBD_FRONTEND {
     PXENVBD_TARGET              Target;
     ULONG                       TargetId;
     ULONG                       DeviceId;
-    CHAR                        FrontendPath[sizeof("device/vbd/XXXXXXXX")];
+    CHAR                        FrontendPath[sizeof("device/vbd/XXXXXXXXX")];
     PCHAR                       BackendPath;
     CHAR                        TargetPath[sizeof("data/scsi/target/XXXX")];
     USHORT                      BackendDomain;
@@ -847,7 +848,6 @@ __ReadDiskInfo(
     if (!Changed)
         return;
 
-    Frontend->Caps.SurpriseRemovable = !!(Frontend->DiskInfo.DiskInfo & VDISK_REMOVABLE);
     if (Frontend->DiskInfo.DiskInfo & VDISK_READONLY) {
         Warning("Target[%d] : DiskInfo contains VDISK_READONLY flag!\n", Frontend->TargetId);
     }
@@ -868,10 +868,9 @@ __ReadDiskInfo(
     Trace("Target[%d] : %lld sectors of %d bytes (%d)\n", Frontend->TargetId,
           Frontend->DiskInfo.SectorCount, Frontend->DiskInfo.SectorSize,
           Frontend->DiskInfo.PhysSectorSize);
-    Trace("Target[%d] : %d %s (%08x) %s\n", Frontend->TargetId,
+    Trace("Target[%d] : %d %s (%08x)\n", Frontend->TargetId,
           __Size(&Frontend->DiskInfo), __Units(&Frontend->DiskInfo),
-          Frontend->DiskInfo.DiskInfo,
-          Frontend->Caps.SurpriseRemovable ? "SURPRISE_REMOVABLE" : "");
+          Frontend->DiskInfo.DiskInfo);
 }
 
 static FORCEINLINE VOID
@@ -883,7 +882,7 @@ FrontendReadFeatures(
 
     Changed = FrontendReadFeature(Frontend,
                                   FeatureRemovable,
-                                  &Frontend->Caps.Removable);
+                                  &Frontend->Features.Removable);
     Changed |= FrontendReadValue32(Frontend,
                                    FeatureMaxIndirectSegments,
                                    TRUE,
@@ -899,7 +898,7 @@ FrontendReadFeatures(
             Frontend->TargetId,
             Frontend->Features.Persistent ? "PERSISTENT " : "",
             Frontend->Features.Indirect ? "INDIRECT " : "",
-            Frontend->Caps.Removable ? "REMOVABLE" : "");
+            Frontend->Features.Removable ? "REMOVABLE" : "");
 
     if (Frontend->Features.Indirect) {
         Verbose("Target[%d] : INDIRECT %x\n",
@@ -913,17 +912,15 @@ FrontendReadDiskInfo(
     IN  PXENVBD_FRONTEND    Frontend
     )
 {
-    BOOLEAN                 Changed;
-    BOOLEAN                 Discard;
     BOOLEAN                 DiscardFeature = FALSE;
     BOOLEAN                 DiscardEnable = TRUE;
 
-    Changed = FrontendReadFeature(Frontend,
-                                  FeatureBarrier,
-                                  &Frontend->DiskInfo.Barrier);
-    Changed |= FrontendReadFeature(Frontend,
-                                   FeatureFlushCache,
-                                   &Frontend->DiskInfo.FlushCache);
+    FrontendReadFeature(Frontend,
+                        FeatureBarrier,
+                        &Frontend->DiskInfo.Barrier);
+    FrontendReadFeature(Frontend,
+                        FeatureFlushCache,
+                        &Frontend->DiskInfo.FlushCache);
 
     // discard related
     FrontendReadFeature(Frontend,
@@ -933,26 +930,19 @@ FrontendReadDiskInfo(
                         FeatureDiscardEnable,
                         &DiscardEnable);
 
-    Discard = DiscardFeature && DiscardEnable;
+    Frontend->DiskInfo.Discard = DiscardFeature && DiscardEnable;
 
-    Changed |= (Discard != Frontend->DiskInfo.Discard);
-
-    Frontend->DiskInfo.Discard = Discard;
-
-    Changed |= FrontendReadFeature(Frontend,
-                                   FeatureDiscardSecure,
-                                   &Frontend->DiskInfo.DiscardSecure);
-    Changed |= FrontendReadValue32(Frontend,
-                                   FeatureDiscardAlignment,
-                                   TRUE,
-                                   &Frontend->DiskInfo.DiscardAlignment);
-    Changed |= FrontendReadValue32(Frontend,
-                                   FeatureDiscardGranularity,
-                                   TRUE,
-                                   &Frontend->DiskInfo.DiscardGranularity);
-
-    if (!Changed)
-        return;
+    FrontendReadFeature(Frontend,
+                        FeatureDiscardSecure,
+                        &Frontend->DiskInfo.DiscardSecure);
+    FrontendReadValue32(Frontend,
+                        FeatureDiscardAlignment,
+                        TRUE,
+                        &Frontend->DiskInfo.DiscardAlignment);
+    FrontendReadValue32(Frontend,
+                        FeatureDiscardGranularity,
+                        TRUE,
+                        &Frontend->DiskInfo.DiscardGranularity);
 
     Verbose("Target[%d] : Features: %s%s%s\n",
                 Frontend->TargetId,
@@ -1370,13 +1360,24 @@ FrontendDisconnect(
 
     Frontend->NumQueues = 0;
 
-    Base64Free(Frontend->Page80.Data);
+    if (Frontend->Page80.Data)
+        Base64Free(Frontend->Page80.Data);
     Frontend->Page80.Data = NULL;
     Frontend->Page80.Size = 0;
 
-    Base64Free(Frontend->Page83.Data);
+    if (Frontend->Page83.Data)
+        Base64Free(Frontend->Page83.Data);
     Frontend->Page83.Data = NULL;
     Frontend->Page83.Size = 0;
+
+    // clear some disk info values, so they can be re-read on connect
+    // allows migration to a backend with different supported features
+    Frontend->DiskInfo.Barrier = FALSE;
+    Frontend->DiskInfo.FlushCache = FALSE;
+    Frontend->DiskInfo.Discard = FALSE;
+    Frontend->DiskInfo.DiscardSecure = FALSE;
+    Frontend->DiskInfo.DiscardAlignment = 0;
+    Frontend->DiskInfo.DiscardGranularity = 0;
 }
 __drv_requiresIRQL(DISPATCH_LEVEL)
 static FORCEINLINE VOID
@@ -1636,19 +1637,18 @@ FrontendDebugCallback(
 
     XENBUS_DEBUG(Printf,
                  &Frontend->DebugInterface,
-                 "Caps: %s%s%s%s%s%s\n",
+                 "Caps: %s%s%s%s\n",
                  Frontend->Caps.Connected ? "CONNECTED " : "",
-                 Frontend->Caps.Removable ? "REMOVABLE " : "",
-                 Frontend->Caps.SurpriseRemovable ? "SURPRISE " : "",
                  Frontend->Caps.Paging ? "PAGING " : "",
                  Frontend->Caps.Hibernation ? "HIBER " : "",
                  Frontend->Caps.DumpFile ? "DUMP " : "");
 
     XENBUS_DEBUG(Printf,
                  &Frontend->DebugInterface,
-                 "Features: %s%s%s%s%s\n",
+                 "Features: %s%s%s%s%s%s\n",
                  Frontend->Features.Persistent ? "PERSISTENT " : "",
                  Frontend->Features.Indirect > 0 ? "INDIRECT " : "",
+                 Frontend->Features.Removable ? "REMOVABLE " : "",
                  Frontend->DiskInfo.Barrier ? "BARRIER " : "",
                  Frontend->DiskInfo.FlushCache ? "FLUSH " : "",
                  Frontend->DiskInfo.Discard ? "DISCARD " : "");
@@ -1973,11 +1973,13 @@ FrontendDestroy(
 
     Trace("Target[%d] @ (%d) =====>\n", TargetId, KeGetCurrentIrql());
 
-    Base64Free(Frontend->Page80.Data);
+    if (Frontend->Page80.Data)
+        Base64Free(Frontend->Page80.Data);
     Frontend->Page80.Data = NULL;
     Frontend->Page80.Size = 0;
 
-    Base64Free(Frontend->Page83.Data);
+    if (Frontend->Page83.Data)
+        Base64Free(Frontend->Page83.Data);
     Frontend->Page83.Data = NULL;
     Frontend->Page83.Size = 0;
 
